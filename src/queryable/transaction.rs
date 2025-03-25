@@ -143,8 +143,15 @@ impl<'a> Transaction<'a> {
 
         let mut conn = conn.into();
 
-        if conn.get_tx_status() != TxStatus::None {
-            return Err(DriverError::NestedTransaction.into());
+        match conn.get_tx_status() {
+            TxStatus::InTransaction => return Err(DriverError::NestedTransaction.into()),
+            TxStatus::RequiresRollback =>  {
+                println!("[M:{}] New transaction requires rollback; doing that rn...", conn.id());
+                conn.query_drop("ROLLBACK").await?;
+                conn.set_tx_status(TxStatus::None);
+                println!("[M:{}] Dirty transaction rollback!", conn.id());
+            }
+            TxStatus::None => ()
         }
 
         if readonly.is_some() && conn.server_version() < (5, 6, 5) {
@@ -176,7 +183,7 @@ impl<'a> Transaction<'a> {
     }
 
     /// Performs `COMMIT` query or returns an error
-    async fn try_commit(&mut self) -> Result<()> {
+    pub async fn try_commit(&mut self) -> Result<()> {
         let result = self.0.query_iter("COMMIT").await?;
         result.drop_result().await?;
         self.0.set_tx_status(TxStatus::None);
@@ -185,22 +192,39 @@ impl<'a> Transaction<'a> {
 
     /// Performs `COMMIT` query or rollbacks when any error occurs and returns the original error.
     pub async fn commit(mut self) -> Result<()> {
+        println!("[M:{}] Committing transaction...", self.id());
         match self.try_commit().await {
             Ok(..) => Ok(()),
-            Err(e) => {
+            Err(err) => {
+                println!("[M:{}] Implicitly rolling back transaction... (err={:?})", self.id(), err);
                 self.0.query_drop("ROLLBACK").await.unwrap_or(());
                 self.0.set_tx_status(TxStatus::None);
-                Err(e)
+                println!("[M:{}] Implicitly rolled back transaction! (tx={:?})", self.id(), self.get_tx_status());
+                Err(err)
             }
         }
     }
 
-    /// Performs `ROLLBACK` query.
-    pub async fn rollback(mut self) -> Result<()> {
+    pub async fn try_rollback(&mut self) -> Result<()>  {
+        println!("[M:{}] Rolling back transaction explicitly...", self.id());
         let result = self.0.query_iter("ROLLBACK").await?;
         result.drop_result().await?;
         self.0.set_tx_status(TxStatus::None);
         Ok(())
+    }
+
+    /// Performs `ROLLBACK` query.
+    pub async fn rollback(mut self) -> Result<()> {
+        match self.try_rollback().await {
+            Ok(..) => {
+                println!("[M:{}] Transaction explicitly rolled back!", self.id());
+                Ok(())
+            }
+            Err(err) => {
+                println!("[M:{}] Error during explicit rollback: {:?}", self.id(), err);
+                Err(err)
+            }
+        }
     }
 }
 
@@ -215,6 +239,7 @@ impl Deref for Transaction<'_> {
 impl Drop for Transaction<'_> {
     fn drop(&mut self) {
         if self.0.get_tx_status() == TxStatus::InTransaction {
+            println!("[M:{}] Transaction ongoing, setting rollback requirement!", self.id());
             self.0.set_tx_status(TxStatus::RequiresRollback);
         }
     }

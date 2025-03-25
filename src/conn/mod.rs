@@ -92,31 +92,31 @@ pub(crate) enum PendingResult {
 }
 
 /// Mysql connection
-struct ConnInner {
-    stream: Option<Stream>,
-    id: u32,
-    is_mariadb: bool,
-    version: (u16, u16, u16),
-    socket: Option<String>,
-    capabilities: CapabilityFlags,
-    status: StatusFlags,
-    last_ok_packet: Option<OkPacket<'static>>,
-    last_err_packet: Option<mysql_common::packets::ServerError<'static>>,
-    handshake_complete: bool,
-    pool: Option<Pool>,
-    pending_result: std::result::Result<Option<PendingResult>, ServerError>,
-    tx_status: TxStatus,
-    reset_upon_returning_to_a_pool: bool,
-    opts: Opts,
-    ttl_deadline: Option<Instant>,
-    last_io: Instant,
-    wait_timeout: Duration,
-    stmt_cache: StmtCache,
-    nonce: Vec<u8>,
-    auth_plugin: AuthPlugin<'static>,
-    auth_switched: bool,
-    server_key: Option<Vec<u8>>,
-    active_since: Instant,
+pub struct ConnInner {
+    pub stream: Option<Stream>,
+    pub id: u32,
+    pub is_mariadb: bool,
+    pub version: (u16, u16, u16),
+    pub socket: Option<String>,
+    pub capabilities: CapabilityFlags,
+    pub status: StatusFlags,
+    pub last_ok_packet: Option<OkPacket<'static>>,
+    pub last_err_packet: Option<mysql_common::packets::ServerError<'static>>,
+    pub handshake_complete: bool,
+    pub pool: Option<Pool>,
+    pub pending_result: std::result::Result<Option<PendingResult>, ServerError>,
+    pub tx_status: TxStatus,
+    pub reset_upon_returning_to_a_pool: bool,
+    pub opts: Opts,
+    pub ttl_deadline: Option<Instant>,
+    pub last_io: Instant,
+    pub wait_timeout: Duration,
+    pub stmt_cache: StmtCache,
+    pub nonce: Vec<u8>,
+    pub auth_plugin: AuthPlugin<'static>,
+    pub auth_switched: bool,
+    pub server_key: Option<Vec<u8>>,
+    pub active_since: Instant,
     /// Connection is already disconnected.
     pub(crate) disconnected: bool,
     /// One-time connection-level infile handler.
@@ -187,7 +187,7 @@ impl ConnInner {
 /// MySql server connection.
 #[derive(Debug)]
 pub struct Conn {
-    inner: Box<ConnInner>,
+    pub inner: Box<ConnInner>,
 }
 
 impl Conn {
@@ -294,12 +294,12 @@ impl Conn {
     }
 
     /// Returns the current transaction status.
-    pub(crate) fn get_tx_status(&self) -> TxStatus {
+    pub fn get_tx_status(&self) -> TxStatus {
         self.inner.tx_status
     }
 
     /// Sets the given transaction status for this connection.
-    pub(crate) fn set_tx_status(&mut self, tx_status: TxStatus) {
+    pub fn set_tx_status(&mut self, tx_status: TxStatus) {
         self.inner.tx_status = tx_status;
     }
 
@@ -365,7 +365,7 @@ impl Conn {
     }
 
     /// Returns current status flags.
-    pub(crate) fn status(&self) -> StatusFlags {
+    pub fn status(&self) -> StatusFlags {
         self.inner.status
     }
 
